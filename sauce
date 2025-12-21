@@ -1,0 +1,159 @@
+#!/bin/bash
+
+# Define colors for better readability
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to display a consistent header
+function print_header() {
+    clear
+    echo -e "${BLUE}=======================================${NC}"
+    echo -e "${BLUE}          Script Launcher Menu         ${NC}"
+    echo -e "${BLUE}=======================================${NC}"
+    echo
+}
+
+# Function to compile and run a C file
+function run_c_file() {
+    local c_file=
+    local executable=${c_file%.c} # Remove .c extension to create executable name
+
+    # Check if gcc is installed
+    if ! command -v gcc &> /dev/null; then
+        echo -e "${RED}Error: gcc is not installed. Please install it to compile C files.${NC}"
+        return
+    fi
+
+    echo -e "${YELLOW}Compiling ${c_file} -> ${executable}...${NC}"
+    if gcc "$c_file" -o "$executable"; then
+        echo -e "${GREEN}Compilation successful.${NC}"
+        echo -e "${YELLOW}Running ${executable}...${NC}"
+        echo "---------------------------------------"
+        # Check if the new executable is actually executable
+        if [ -x "$executable" ]; then
+            "$executable"
+        else
+            echo -e "${RED}Error: Compiled file is not executable. Check permissions.${NC}"
+        fi
+        echo "---------------------------------------"
+        echo -e "${GREEN}Execution finished.${NC}"
+    else
+        echo -e "${RED}Compilation failed.${NC}"
+    fi
+}
+
+# --- Main loop ---
+while true; do
+    print_header
+
+    # Find all runnable/source scripts in the subdirectories.
+    # The script directories must exist.
+    script_dirs=("python" "perl" "c")
+    for dir in "${script_dirs[@]}"; do
+        if [ ! -d "$dir" ]; then
+            echo -e "${RED}Error: Directory '$dir' not found.${NC}"
+            echo "Please run the organization script first to create the directories."
+            exit 1
+        fi
+    done
+
+    # Use mapfile to read find's output safely into an array
+    if ! mapfile -t scripts < <(find "${script_dirs[@]}" -type f \( -name "*.py" -o -name "*.pl" -o -name "*.c" \)); then
+        echo -e "${YELLOW}No scripts found in 'python', 'perl', or 'c' directories.${NC}"
+    fi
+    num_scripts=${#scripts[@]}
+
+    # Display menu options for each script
+    echo "Select a script or program to run:"
+    if [ "$num_scripts" -gt 0 ]; then
+        for i in "${!scripts[@]}"; do
+            option_num=$((i + 1))
+            echo -e "  ${GREEN}${option_num}.${NC} ${scripts[$i]}"
+        done
+    fi
+    echo
+
+    # Display exit option
+    exit_opt_num=$((num_scripts + 1))
+    echo "Other options:"
+    echo -e "  ${RED}${exit_opt_num}.${NC} Exit"
+    echo
+
+    # Prompt for user input
+    read -p "Please enter option [1 - ${exit_opt_num}]: " opt
+
+    # Validate and process input
+    if ! [[ "$opt" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Error: '$opt' is not a valid number.${NC}"
+    elif [ "$opt" -ge 1 ] && [ "$opt" -le "$num_scripts" ]; then
+        selected_index=$((opt - 1))
+        selected_script=${scripts[$selected_index]}
+
+        print_header
+        echo -e "${YELLOW}Preparing to run: ${selected_script}${NC}"
+        echo
+
+        # Execute based on file type
+        case "$selected_script" in
+            *.py)
+                if grep -q -i "USAGE" "$selected_script"; then
+                    echo -e "${YELLOW}Usage instructions found for ${selected_script}:${NC}"
+                    
+                    # Extract and display the USAGE block.
+                    # Find the line with "USAGE", start printing from there, and stop at the first blank line.
+                    line_num=$(grep -n -i "USAGE" "$selected_script" | head -n 1 | cut -d: -f1)
+                    if [ -n "$line_num" ]; then
+                        usage_text=$(tail -n +$line_num "$selected_script" | sed '/^[[:space:]]*$/q')
+                    fi
+
+                    # Fallback if the above command failed
+                    if [ -z "$usage_text" ]; then
+                        usage_text=$(grep -i -A 5 "USAGE" "$selected_script")
+                    fi
+                    
+                    echo -e "${GREEN}"
+                    echo "$usage_text"
+                    echo -e "${NC}"
+                    
+                    # Prompt for arguments
+                    read -p "Please enter the arguments for the script (if any): " args
+                    
+                    echo -e "${YELLOW}Running: python2.7 ${selected_script} ${args}${NC}"
+                    echo "---------------------------------------"
+                    python2.7 "$selected_script" $args
+                    echo "---------------------------------------"
+                    echo -e "${GREEN}Execution finished.${NC}"
+
+                else
+                    # No USAGE section, run directly
+                    echo -e "${YELLOW}No USAGE section found. Running '${selected_script}' directly...${NC}"
+                    echo "---------------------------------------"
+                    python2.7 "$selected_script"
+                    echo "---------------------------------------"
+                    echo -e "${GREEN}Execution finished.${NC}"
+                fi
+                ;;
+            *.pl)
+                perl "$selected_script"
+                ;;
+            *.c)
+                run_c_file "$selected_script"
+                ;;
+            *)
+                echo -e "${RED}Error: Don't know how to run this file type.${NC}"
+                ;;
+        esac
+
+    elif [ "$opt" -eq "$exit_opt_num" ]; then
+        clear
+        echo "Goodbye!"
+        exit 0
+    else
+        echo -e "${RED}Error: '$opt' is not a valid option.${NC}"
+    fi
+
+    echo
+    read -p "Press Enter to return to the menu..."
