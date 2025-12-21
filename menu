@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# Define colors for better readability
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# --- Functions for menu actions ---
+
+# Function to display a consistent header
+function print_header() {
+    clear
+    echo -e "${BLUE}=======================================${NC}"
+    echo -e "${BLUE}        Network Traffic Menu           ${NC}"
+    echo -e "${BLUE}=======================================${NC}"
+    echo
+}
+
+# Generic function to show traffic on a given interface
+function show_traffic() {
+    local interface=$1
+    if [ -z "$interface" ]; then
+        echo -e "${RED}Error: No interface specified.${NC}"
+        return
+    fi
+    print_header
+    echo -e "${YELLOW}********* Traffic on ${interface} **********${NC}"
+    echo "Capturing traffic on interface ${interface}. Press Ctrl+C to stop."
+    echo
+    tcpdump -npi "${interface}"
+}
+
+# Function to show all interface configurations
+function show_interface_config() {
+    print_header
+    echo -e "${YELLOW}********* Interface Configurations **********${NC}"
+    echo "Use 'space' to scroll down, 'b' to scroll up, 'q' to quit."
+    echo
+    ifconfig -a | more
+}
+
+# --- Main loop ---
+while true; do
+    # Get available network interfaces from /sys/class/net, which is reliable on Linux
+    interfaces=($(ls /sys/class/net))
+    num_interfaces=${#interfaces[@]}
+
+    print_header
+
+    # Display dynamic menu options for each interface
+    echo "Select an interface to monitor:"
+    for i in "${!interfaces[@]}"; do
+        option_num=$((i + 1))
+        echo -e "  ${GREEN}${option_num}.${NC} ${interfaces[$i]}"
+    done
+    echo
+
+    # Display static menu options
+    config_opt_num=$((num_interfaces + 1))
+    exit_opt_num=$((num_interfaces + 2))
+    echo "Other options:"
+    echo -e "  ${GREEN}${config_opt_num}.${NC} Show all interface configurations"
+    echo -e "  ${RED}${exit_opt_num}.${NC} Exit"
+    echo
+
+    # Prompt for user input
+    read -p "Please enter option [1 - ${exit_opt_num}]: " opt
+
+    # Validate input is a number
+    if ! [[ "$opt" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Error: '$opt' is not a valid number.${NC}"
+    # Check if option is for an interface
+    elif [ "$opt" -ge 1 ] && [ "$opt" -le "$num_interfaces" ]; then
+        selected_index=$((opt - 1))
+        selected_interface=${interfaces[$selected_index]}
+        show_traffic "$selected_interface"
+    # Check if option is for showing config
+    elif [ "$opt" -eq "$config_opt_num" ]; then
+        show_interface_config
+    # Check if option is for exiting
+    elif [ "$opt" -eq "$exit_opt_num" ]; then
+        clear
+        echo
+        echo "Goodbye"
+        echo
+        exit 0
+    # Handle invalid option number
+    else
+        echo -e "${RED}Error: '$opt' is not a valid option.${NC}"
+    fi
+
+    # Pause and wait for user to continue
+    echo
+    read -p "Press Enter to return to the menu..."
+done
