@@ -1,6 +1,8 @@
 import psutil
 import time
 import datetime
+import json
+import urllib.request
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -25,6 +27,57 @@ eva_theme = {
     "progressbar.bar": "#00FF00",
     "progressbar.pulse": "#FF0000",
 }
+
+# --- Weather Cache ---
+_weather_cache = None
+_last_weather_update = 0
+
+def get_weather(cache_duration=900):
+    """Fetches local weather from wttr.in, with caching."""
+    global _weather_cache, _last_weather_update
+    
+    current_time = time.time()
+    if current_time - _last_weather_update < cache_duration and _weather_cache is not None:
+        return _weather_cache
+
+    try:
+        with urllib.request.urlopen("http://wttr.in/?format=j1", timeout=5) as response:
+            if response.status != 200:
+                raise Exception(f"Weather API returned {response.status}")
+            weather_data = json.loads(response.read().decode("utf-8"))
+        
+        current = weather_data.get('current_condition', [{}])[0]
+        area = weather_data.get('nearest_area', [{}])[0]
+        
+        location_parts = []
+        if area.get('areaName'):
+            location_parts.append(area['areaName'][0]['value'])
+        if area.get('region'):
+            location_parts.append(area['region'][0]['value'])
+        if area.get('country'):
+            location_parts.append(area['country'][0]['value'])
+        
+        location_str = ", ".join(filter(None, location_parts)) if location_parts else "Unknown Location"
+
+        temp_c = current.get('temp_C', 'N/A')
+        feels_like_c = current.get('FeelsLikeC', 'N/A')
+        temp_f = current.get('temp_F', 'N/A')
+        feels_like_f = current.get('FeelsLikeF', 'N/A')
+        description = current.get('weatherDesc', [{}])[0].get('value', '')
+        
+        weather_info = {
+            "location": location_str,
+            "temp": f"{temp_f}°F",
+            "feels_like": f"{feels_like_f}°F",
+            "description": description
+        }
+        _weather_cache = weather_info
+        _last_weather_update = time.time()
+        return weather_info
+    except Exception:
+        if current_time - _last_weather_update > cache_duration * 4:
+             _weather_cache = None
+        return _weather_cache
 
 def get_uptime():
     """Returns system uptime as a formatted string."""
@@ -51,6 +104,7 @@ def make_layout() -> Layout:
 
     layout["main"].split_row(Layout(name="left"), Layout(name="right", ratio=2))
     layout["left"].split(Layout(name="cpu_status"), Layout(name="mem_status"))
+    layout["right"].split(Layout(name="sysinfo"), Layout(name="weather", size=7))
     
     return layout
 
@@ -90,10 +144,31 @@ def create_mem_panel(mem_usage) -> Panel:
     mem_bar = ProgressBar(total=100, completed=mem_usage.percent, width=20, style=eva_theme["progressbar.bar"])
     grid.add_row("VIRT-MEM", mem_bar)
     
+    # Swap Memory
+    swap = psutil.swap_memory()
+    swap_bar = ProgressBar(total=100, completed=swap.percent, width=20, style=eva_theme["progressbar.bar"])
+    grid.add_row("SWAP-MEM", swap_bar)
+    
     # Disk
     disk = psutil.disk_usage('/')
     disk_bar = ProgressBar(total=100, completed=disk.percent, width=20, style=eva_theme["progressbar.bar"])
     grid.add_row("ROOT DISK", disk_bar)
+
+    # External Storage Devices
+    external_drives_found = 0
+    for part in psutil.disk_partitions(all=False):
+        if part.mountpoint.startswith(('/media/', '/mnt/', '/run/media/')):
+            try:
+                usage = psutil.disk_usage(part.mountpoint)
+                name = part.mountpoint.strip('/').split('/')[-1]
+                bar = ProgressBar(total=100, completed=usage.percent, width=20, style=eva_theme["progressbar.bar"])
+                grid.add_row(f"EXT-DRV ({name})", bar)
+                external_drives_found += 1
+            except Exception:
+                pass
+    
+    if not external_drives_found:
+        grid.add_row("EXT-STORAGE", "[dim]NOT DETECTED[/dim]")
 
     return Panel(grid, title="[bold]MEMORY & STORAGE[/bold]", border_style=eva_theme["border"], title_align="left")
     
@@ -110,10 +185,30 @@ def create_sysinfo_panel() -> Panel:
     info_table.add_row("PATTERN ANALYSIS:", "A.T. FIELD: NORMAL")
     
     # Network Info
-    try:
-        ip = list(psutil.net_if_addrs().values())[1][0].address
-        info_table.add_row("LOCAL IP:", ip)
-    except (IndexError, KeyError):
+    wifi_ips = []
+    other_ips = []
+    ifaces = psutil.net_if_addrs()
+    stats = psutil.net_if_stats()
+
+    for name, addrs in ifaces.items():
+        if name in stats and stats[name].isup:
+            is_wifi = name.startswith(('wlan', 'wlp', 'wifi'))
+            is_loopback = name == 'lo'
+            if not is_loopback:
+                for addr in addrs:
+                    if addr.family == 2:  # AF_INET for IPv4
+                        if is_wifi:
+                            wifi_ips.append((name, addr.address))
+                        else:
+                            other_ips.append((name, addr.address))
+
+    if wifi_ips:
+        for name, ip in sorted(wifi_ips):
+            info_table.add_row(f"WIFI IP ({name}):", ip)
+    elif other_ips:
+        for name, ip in sorted(other_ips):
+            info_table.add_row(f"LOCAL IP ({name}):", ip)
+    else:
         info_table.add_row("LOCAL IP:", "[red]NOT FOUND[/red]")
         
     info_table.add_row("S² ENGINE:", "[green]ACTIVE[/green]")
@@ -127,6 +222,25 @@ def create_sysinfo_panel() -> Panel:
     
     return Panel(container, title="[bold]SYSTEM INFO[/bold]", border_style=eva_theme["border"])
 
+def create_weather_panel() -> Panel:
+    """Creates a panel for local weather information."""
+    weather_data = get_weather()
+    if weather_data:
+        info_table = Table.grid(padding=(0, 2))
+        info_table.add_column(style="bold " + eva_theme["border"])
+        info_table.add_column(style=eva_theme["text"])
+        
+        info_table.add_row("LOCATION:", weather_data["location"])
+        info_table.add_row("CONDITIONS:", weather_data["description"])
+        info_table.add_row("TEMPERATURE:", weather_data["temp"])
+        info_table.add_row("FEELS LIKE:", weather_data["feels_like"])
+        
+        panel_content = info_table
+    else:
+        panel_content = Align.center(Text("WEATHER DATA UNAVAILABLE", style="dim"), vertical="middle")
+
+    return Panel(panel_content, title="[bold]LOCAL FORECAST[/bold]", border_style=eva_theme["border"])
+
 def update_layout(layout: Layout):
     """Fetches new system stats and updates the layout panels."""
     cpu_usage = psutil.cpu_percent(percpu=True)
@@ -136,7 +250,8 @@ def update_layout(layout: Layout):
     layout["footer"].update(create_footer())
     layout["cpu_status"].update(create_cpu_panel(cpu_usage))
     layout["mem_status"].update(create_mem_panel(mem_usage))
-    layout["right"].update(create_sysinfo_panel())
+    layout["sysinfo"].update(create_sysinfo_panel())
+    layout["weather"].update(create_weather_panel())
 
 if __name__ == "__main__":
     layout = make_layout()
