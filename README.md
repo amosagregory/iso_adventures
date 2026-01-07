@@ -24,7 +24,7 @@ I'm a pragmatic, curious software engineer who loves building tools, automations
 ---
 
 ## ⭐ Featured Projects
-Here are a few highlights — swap in your favorite repos and short descriptions:
+Here are a few highlights:
 
 - [eva_cli](https://github.com/amosagregory/iso_adventures) — A terminal dashboard inspired by Evangelion UI themes for system monitoring (CLI + rich UI).
 
