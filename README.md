@@ -55,8 +55,8 @@ If you maintain a project and want help with issues labeled `good first issue` o
 
 ## 💬 Get in touch
 - Email: amosagregory@sinkhole42.com
-- Twitter: [@yourhandle](https://twitter.com/amosagregory)
-- LinkedIn: [Your Name](https://www.linkedin.com/in/amosagregory)
+- Twitter: [@amosagregory](https://twitter.com/amosagregory)
+- LinkedIn: [Amos A Gregory Jr](https://www.linkedin.com/in/amosagregory)
 
 ---
 
