@@ -61,7 +61,7 @@ If you maintain a project and want help with issues labeled `good first issue` o
 ---
 
 
-Thanks for stopping by — I keep this README lightweight so visitors can quickly find what matters. Want a one-page portfolio instead? I can create a polished version with screenshots, badges, and a downloadable CV.
+Thanks for stopping by — I keep this README lightweight so visitors can quickly find what matters.
 
 # iso_adventures
 
