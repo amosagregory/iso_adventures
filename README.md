@@ -14,7 +14,7 @@ I'm a pragmatic, curious software engineer who loves building tools, automations
 ---
 
 ## 🛠️ Core Skills
-- Languages: Python, add other languages you use
+- Languages: Python, and other languages you use
 - Tooling: CLI design, testing, packaging, automation
 - Observability: logging, metrics, dashboards
 - Systems: cross-platform scripting, process and resource monitoring
