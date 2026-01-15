@@ -65,6 +65,6 @@ Thanks for stopping by — I keep this README lightweight so visitors can quickl
 
 # iso_adventures
 
-password: Super2059
+if I hand you an ISO 9660 this is probably the password: Super2059
 
 notes: webapp-access.log
