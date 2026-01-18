@@ -2,7 +2,7 @@
 
 > Elevating code, crafting tooling, and shipping delightful developer experiences — one commit at a time.
 
-I'm a pragmatic, curious software engineer who loves building tools, automations, and clean developer-facing experiences. I focus on reliable systems, readable code, and bringing practical ideas into production quickly.
+I'm a pragmatic, curious systems engineer who loves building tools, automations, and clean developer-facing experiences. I focus on reliable systems, readable code, and bringing practical ideas into production quickly.
 
 ---
 
